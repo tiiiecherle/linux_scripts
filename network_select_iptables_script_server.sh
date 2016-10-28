@@ -253,44 +253,63 @@ iptables -A reject_packages -p ALL -j RETURN
 
 ### logging
 # log all input rejected packages
+# 2/m
+# 5/m
+# 10/m
+# 10/s
 iptables -N input_log_reject
-iptables -A input_log_reject -j LOG -m limit --limit 2/min --log-prefix "INPUT:DROP: " --log-level 6
+iptables -A input_log_reject -j LOG -m limit --limit 10/m --log-prefix "INPUT:DROP: " --log-level 6
 iptables -A input_log_reject -j reject_packages
 iptables -A input_log_reject -p ALL -j RETURN
 # log all output rejected packages
 iptables -N output_log_reject
-iptables -A output_log_reject -j LOG -m limit --limit 2/min --log-prefix "OUTPUT:DROP: " --log-level 6
+iptables -A output_log_reject -j LOG -m limit --limit 10/m --log-prefix "OUTPUT:DROP: " --log-level 6
 iptables -A output_log_reject -j reject_packages
 iptables -A output_log_reject -p ALL -j RETURN
 
 
 ### security
 # port scanning
+##	1/s		-
+#	1/s		2
+#	2/s		2
 iptables -N port_scanning
 iptables -A port_scanning -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 2 -j RETURN
+# the following seconds / hitcount rule could cause problems with owncloud or other web services
+#iptables -A INPUT -p tcp --tcp-flags SYN SYN -m conntrack --ctstate NEW -m recent --set
+#iptables -A INPUT -p tcp --tcp-flags SYN SYN -m conntrack --ctstate NEW -m recent --update --seconds 20 --hitcount 10 -j DROP
 iptables -A port_scanning -j DROP
 # ddos
+# 50/m	200
+# 60/s	20
 iptables -N ddos
 iptables -A ddos -p tcp -m conntrack --ctstate NEW -m limit --limit 60/s --limit-burst 20 -j RETURN
 iptables -A ddos -j DROP
 # syn flood
+##	1/s		-
+#	1/s		3
+# 	5/s		10
 iptables -N synflood
-iptables -A synflood -m limit --limit 10/s --limit-burst 100 -j RETURN
+iptables -A synflood -p tcp -m limit --limit 1/s --limit-burst 3 -j RETURN
 iptables -A synflood -j DROP
 # http limits
+# 10/s	100
+# 25/m	100
 iptables -N http_limits
 iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set
-iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
-iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 15 --connlimit-mask 32 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 100 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m limit --limit 10/second --limit-burst 100 -j RETURN
 iptables -A http_limits -p tcp --dport 80 -j DROP
 # https limits
-iptables -N https_limits
-iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
-iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
-iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 15 --connlimit-mask 32 -j DROP 
-iptables -A https_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
-iptables -A https_limits -p tcp --dport 443 -j DROP
+iptables -N http_limits
+iptables -A http_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
+iptables -A http_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
+iptables -A http_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
+iptables -A http_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 -j DROP
+iptables -A http_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
+iptables -A http_limits -p tcp --dport 443 -j DROP
 # ssh limits
 iptables -N ssh_limits
 # limiting ssh connections, drop all requests that are more than --hitcount x tries within --seconds y
@@ -611,6 +630,7 @@ iptables -A OUTPUT -o lo -j ACCEPT
 #iptables -A INPUT -p icmp -j ACCEPT
 iptables -A INPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8 -m limit --limit 1/s -j ACCEPT
 iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
+iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
 # output
 iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
 iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
@@ -621,7 +641,9 @@ iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type
 ###
 
 ### allowing all existing connections
-iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+#iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
+
 
 ### security / hardening
 # do not reject when many packages arrive, because each reject would send a feedback and this can exceed the upload
@@ -665,7 +687,9 @@ iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 # limit connections per source ip
-iptables -A INPUT -p tcp -m connlimit --connlimit-above 100 -j DROP
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 --connlimit-mask 32 -j DROP
+# limit connections overall
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 -j DROP
 
 
 ### sending packages through tables
