@@ -643,8 +643,8 @@ iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type
 ###
 
 ### allowing all existing connections
-#iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
+iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+#iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
 
 
 ### security / hardening
