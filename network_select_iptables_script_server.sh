@@ -303,13 +303,13 @@ iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 100 -j 
 iptables -A http_limits -p tcp --dport 80 -m limit --limit 10/second --limit-burst 100 -j RETURN
 iptables -A http_limits -p tcp --dport 80 -j DROP
 # https limits
-iptables -N http_limits
-iptables -A http_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
-iptables -A http_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
-iptables -A http_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
-iptables -A http_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 -j DROP
-iptables -A http_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
-iptables -A http_limits -p tcp --dport 443 -j DROP
+iptables -N https_limits
+iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
+iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
+iptables -A https_limits -p tcp --dport 443 -j DROP
 # ssh limits
 iptables -N ssh_limits
 # limiting ssh connections, drop all requests that are more than --hitcount x tries within --seconds y
