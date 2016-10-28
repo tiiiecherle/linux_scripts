@@ -297,17 +297,17 @@ iptables -A synflood -j DROP
 # 25/m	100
 iptables -N http_limits
 iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set
-iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
-iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
-iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 100 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 10 -j DROP
+iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 100 --connlimit-mask 0 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m limit --limit 10/second --limit-burst 100 -j RETURN
 iptables -A http_limits -p tcp --dport 80 -j DROP
 # https limits
 iptables -N https_limits
 iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
-iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 1 --hitcount 10 -j DROP
-iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 --connlimit-mask 32 -j DROP
-iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 -j DROP
+iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 --connlimit-mask 0 -j DROP
 iptables -A https_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
 iptables -A https_limits -p tcp --dport 443 -j DROP
 # ssh limits
@@ -316,6 +316,8 @@ iptables -N ssh_limits
 # if ssh port is closed, packages are sent to input_log_reject if not matching the spefcified criteria, after that they are dropped without log
 iptables -A ssh_limits -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --set
 iptables -A ssh_limits -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 4 -j DROP
+iptables -A ssh_limits -p tcp --dport 22 -m connlimit --connlimit-above 2 -j DROP
+iptables -A ssh_limits -p tcp --dport 22 -m connlimit --connlimit-above 10 --connlimit-mask 0 -j DROP
 iptables -A ssh_limits -p tcp --dport 22 -j RETURN
 # reject limits
 # do not reject when many packages arrive, because each reject would send a feedback and this can exceed the upload
@@ -687,9 +689,9 @@ iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 # limit connections per source ip
-iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 --connlimit-mask 32 -j DROP
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
 # limit connections overall
-iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 -j DROP
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
 
 
 ### sending packages through tables
