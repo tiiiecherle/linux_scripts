@@ -291,7 +291,7 @@ iptables -A ddos -j DROP
 # 	5/s		10
 iptables -N synflood
 iptables -A synflood -p tcp -m limit --limit 1/s --limit-burst 3 -j RETURN
-iptables -A synflood -j DROP
+iptables -A synflood -p tcp -j DROP
 # http limits
 # 10/s	100
 # 25/m	100
@@ -632,7 +632,7 @@ iptables -A OUTPUT -o lo -j ACCEPT
 #iptables -A INPUT -p icmp -j ACCEPT
 iptables -A INPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8 -m limit --limit 1/s -j ACCEPT
 iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
-iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+#iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
 # output
 iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
 iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
@@ -689,18 +689,18 @@ iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 # limit connections per source ip
-iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
+#iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
 # limit connections overall
-iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
+#iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
 
 
 ### sending packages through tables
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j port_scanning
 iptables -A INPUT -p tcp -j ddos
-iptables -A INPUT -p ALL -j synflood
-iptables -A INPUT -p ALL -j ssh_limits
-iptables -A INPUT -p ALL -j http_limits
-iptables -A INPUT -p ALL -j https_limits
+iptables -A INPUT -p tcp -j synflood
+iptables -A INPUT -p tcp -j ssh_limits
+iptables -A INPUT -p tcp -j http_limits
+iptables -A INPUT -p tcp -j https_limits
 iptables -A INPUT -p ALL -j input_services_all
 iptables -A INPUT -p ALL -j input_services_internal
 if [ "$RESCUE_SUBNET" != "" ]
