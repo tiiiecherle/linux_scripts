@@ -689,9 +689,9 @@ iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 # limit connections per source ip
-#iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
 # limit connections overall
-#iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
+iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
 
 
 ### sending packages through tables
