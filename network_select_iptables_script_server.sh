@@ -285,13 +285,17 @@ iptables -A port_scanning -j DROP
 iptables -N ddos
 iptables -A ddos -p tcp -m conntrack --ctstate NEW -m limit --limit 60/s --limit-burst 20 -j RETURN
 iptables -A ddos -j DROP
-# syn flood
+# syn flood tcp
 ##	1/s		-
 #	1/s		3
 # 	5/s		10
-iptables -N synflood
-iptables -A synflood -p tcp -m limit --limit 1/s --limit-burst 3 -j RETURN
-iptables -A synflood -p tcp -j DROP
+iptables -N synflood_tcp
+iptables -A synflood_tcp -p tcp -m limit --limit 1/s --limit-burst 3 -j RETURN
+iptables -A synflood_tcp -p tcp -j DROP
+# syn flood udp
+iptables -N synflood_udp
+iptables -A synflood_udp -p udp -m limit --limit 10/s --limit-burst 3 -j RETURN
+iptables -A synflood_udp -p udp -j DROP
 # http limits
 # 10/s	100
 # 25/m	100
@@ -632,6 +636,9 @@ iptables -A OUTPUT -o lo -j ACCEPT
 #iptables -A INPUT -p icmp -j ACCEPT
 iptables -A INPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8 -m limit --limit 1/s -j ACCEPT
 iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
+# ping flood
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
 #iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
 # output
 iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
@@ -642,8 +649,9 @@ iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type
 ### input
 ###
 
-### allowing all existing connections
+### allowing only all existing ESTABLISHED and RELATED connections, not NEW
 iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# this limits all established tcp connections including samba, etc. to a certain speed
 #iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
 
 
@@ -697,7 +705,8 @@ iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -
 ### sending packages through tables
 iptables -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j port_scanning
 iptables -A INPUT -p tcp -j ddos
-iptables -A INPUT -p tcp -j synflood
+iptables -A INPUT -p tcp -j synflood_tcp
+iptables -A INPUT -p udp -j synflood_udp
 iptables -A INPUT -p tcp -j ssh_limits
 iptables -A INPUT -p tcp -j http_limits
 iptables -A INPUT -p tcp -j https_limits
@@ -716,11 +725,26 @@ iptables -A INPUT -p ALL -j reject_limits
 ### output
 ###
 
-### allowing all existing connections
+### allowing only all ESTABLISHED AND RELATED existing connections, not NEW
 #iptables -A OUTPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-### sending packages through tables
+### security
+# invalid packages
 iptables -A OUTPUT -m conntrack --ctstate INVALID -j DROP
+# invalid syn packages
+iptables -A OUTPUT -p tcp --tcp-flags ALL ACK,RST,SYN,FIN -j DROP
+iptables -A OUTPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+iptables -A OUTPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+# allowing only sym packages
+iptables -A OUTPUT -p tcp ! --syn -m state --state NEW -j DROP
+# fragments
+iptables -A OUTPUT -f -j DROP
+# xmas packages
+iptables -A OUTPUT -p tcp --tcp-flags ALL ALL -j DROP
+# malformed null packages
+iptables -A OUTPUT -p tcp --tcp-flags ALL NONE -j DROP
+
+### sending packages through tables
 iptables -A OUTPUT -p ALL -j output_services_all
 iptables -A OUTPUT -p ALL -j output_services_internal
 if [ "$RESCUE_SUBNET" != "" ]
@@ -802,6 +826,17 @@ fi
 # iptables -L FORWARD -n -v --line-numbers > /var/log/iptables.rules.log
 # iptables -t nat -L POSTROUTING -n -v --line-numbers > /var/log/iptables.rules.log
 # rm /var/log/iptables.rules.log
+
+
+###
+### testing
+###
+
+# sudo nmap -v -f FIREWALL-IP
+# sudo nmap -v -sX FIREWALL-IP
+# sudo nmap -v -sN FIREWALL-IP
+# sudo hping2 -X FIREWALL-IP
+# sudo hping3 -S FIREWALL-IP -p 443 --flood
 
 
 ###
