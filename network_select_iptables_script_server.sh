@@ -29,7 +29,7 @@ else
 # input udp all
 INPUT_SERVICES_UDP_ALL="123 1194 1196 1197"
 # input tcp all
-INPUT_SERVICES_TCP_ALL="21 80 443 50000:51000"
+INPUT_SERVICES_TCP_ALL="21 80 443 60000:60100"
 # input udp internal
 INPUT_SERVICES_UDP_INTERNAL="53 137 138"
 # input tcp internal
@@ -37,11 +37,11 @@ INPUT_SERVICES_TCP_INTERNAL="22 139 445 889 4430 5900"
 # output udp all dport
 OUTPUT_SERVICES_UDP_ALL_DPORT="53 123 137 138 1194 1196 1197 5353"
 # output tcp all dport
-OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 49000:50000 50000:51000"
+OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 60000:60100"
 # output udp all sport
 OUTPUT_SERVICES_UDP_ALL_SPORT="53 123 137 138 1194 1196 1197 5353"
 # output tcp all sport
-OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 49000:50000 50000:51000"
+OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 60000:60100"
 # output udp internal
 OUTPUT_SERVICES_UDP_INTERNAL=""
 # output tcp internal
@@ -49,7 +49,7 @@ OUTPUT_SERVICES_TCP_INTERNAL=""
 # forward udp internal
 FORWARD_SERVICES_UDP_INTERNAL="5353"
 # forward tcp internal
-FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100 49000:50000 50000:60000"
+FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 # service subnet
 #RESCUE_SUBNET="172.25.143.0/24"
 #INPUT_SERVICES_UDP_RESCUE_INTERNAL=""
@@ -62,7 +62,7 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100 49000:50000 50
 #       DNS hostname            		TCP             53
 #       samba                   		TCP             139 445
 #       samba                   		UDP             137 138
-#       ftp                     		TCP             21 50000-51000
+#       ftps                     		TCP             21 60000:60100
 #       http / https            		TCP             80 443
 #       openvpn                			UDP             1194 1195 1196 1197
 #       vnc                     		TCP             5900
@@ -76,8 +76,8 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100 49000:50000 50
 #       unified remote          		UDP             9511 9512
 # forwarding for openvpn connections
 #       http / https            		TCP             80 443
-#       remote desktop          		TCP             3389, 49000:50000
-#       lexmark printer         		TCP             80 443 515 631 9100 50000:60000
+#       remote desktop          		TCP             3389
+#       lexmark printer         		TCP             80 443 515 631 9100
 #       printer, bonjour, mdns			UDP				5353
 														# only working with tap, tun cannot multicast / bonjour
 														# printer has to be connected via ip for tun connections
@@ -710,6 +710,7 @@ iptables -A INPUT -p udp -j synflood_udp
 iptables -A INPUT -p tcp -j ssh_limits
 iptables -A INPUT -p tcp -j http_limits
 iptables -A INPUT -p tcp -j https_limits
+iptables -A PREROUTING -t raw -p tcp --dport 21 -j CT --helper ftp
 iptables -A INPUT -p ALL -j input_services_all
 iptables -A INPUT -p ALL -j input_services_internal
 if [ "$RESCUE_SUBNET" != "" ]
@@ -726,7 +727,7 @@ iptables -A INPUT -p ALL -j reject_limits
 ###
 
 ### allowing only all ESTABLISHED AND RELATED existing connections, not NEW
-#iptables -A OUTPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 ### security
 # invalid packages
