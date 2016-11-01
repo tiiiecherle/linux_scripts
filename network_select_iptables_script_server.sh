@@ -618,6 +618,55 @@ fi
 
 
 ###
+### prerouting
+###
+
+
+# https://javapipe.com/iptables-ddos-protection
+# the best solution to dramatically increase the performance of iptables rules and therefore the amount of (tcp) ddos attack traffic they can filter is to use the mangle table and the PREROUTING chain and with this moving the anti-ddos rules as far up the chains as possible.
+# the issue with other approaches is that the INPUT chain is only processed after the PREROUTING and FORWARD chains and therefore only applies if the packet doesn't match any of these two chains. This causes a delay in the filtering of the packet which consumes resources.
+# however, the filter table doesn't support the PREROUTING chain. To get around this problem, simply use the mangle table instead of the filter table for anti-ddos iptables rules. It supports most if not all rules that the filter table supports while also supporting all iptables chains.
+
+
+### security / hardening
+# do not reject when many packages arrive, because each reject would send a feedback and this can exceed the upload
+# making sure new incoming tcp connections are syn packages, drop all non-syn packages
+iptables -t mangle -A PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
+# invalid packages                                                                
+iptables -t mangle -A PREROUTING -p ALL -m conntrack --ctstate INVALID -j DROP
+# syn packages with suspicious mss value
+iptables -t mangle -A PREROUTING -p tcp -m conntrack --ctstate NEW -m tcpmss ! --mss 536:65535 -j DROP
+# packages with bogus tcp flags
+# null packages, fin packages, xmas packages, ...
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG NONE -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags FIN,SYN FIN,SYN -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags FIN,RST FIN,RST -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags FIN,ACK FIN -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ACK,URG URG -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ACK,FIN FIN -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ACK,PSH PSH -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ALL ALL -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ALL NONE -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ALL FIN,PSH,URG -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ALL SYN,FIN,PSH,URG -j DROP
+iptables -t mangle -A PREROUTING -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+# spoofed packages
+iptables -t mangle -A PREROUTING -s 224.0.0.0/3 -j DROP
+iptables -t mangle -A PREROUTING -s 169.254.0.0/16 -j DROP
+#iptables -t mangle -A PREROUTING -s 172.16.0.0/12 -j DROP
+iptables -t mangle -A PREROUTING -s 192.0.2.0/24 -j DROP
+#iptables -t mangle -A PREROUTING -s 192.168.0.0/16 -j DROP
+#iptables -t mangle -A PREROUTING -s 10.0.0.0/8 -j DROP
+iptables -t mangle -A PREROUTING -s 0.0.0.0/8 -j DROP
+iptables -t mangle -A PREROUTING -s 240.0.0.0/5 -j DROP
+#iptables -t mangle -A PREROUTING -s 127.0.0.0/8 ! -i lo -j DROP
+# fragments
+iptables -t mangle -A PREROUTING -f -j DROP
+
+
+###
 ### loopback and ping
 ###
 
@@ -655,48 +704,13 @@ iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 #iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
 
 
-### security / hardening
-# do not reject when many packages arrive, because each reject would send a feedback and this can exceed the upload
-# making sure new incoming tcp connections are syn packages, drop all non-syn packages
-iptables -A INPUT -p tcp ! --syn -m conntrack --ctstate NEW -j DROP
-# invalid packages                                                                
-iptables -A INPUT -p ALL -m conntrack --ctstate INVALID -j DROP
-# syn packages with suspicious mss value
-iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m tcpmss ! --mss 536:65535 -j DROP
-# packages with bogus tcp flags
-# null packages, fin packages, xmas packages, ...
-iptables -A INPUT -p tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG NONE -j DROP
-iptables -A INPUT -p tcp --tcp-flags FIN,SYN FIN,SYN -j DROP
-iptables -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-iptables -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-iptables -A INPUT -p tcp --tcp-flags FIN,RST FIN,RST -j DROP
-iptables -A INPUT -p tcp --tcp-flags FIN,ACK FIN -j DROP
-iptables -A INPUT -p tcp --tcp-flags ACK,URG URG -j DROP
-iptables -A INPUT -p tcp --tcp-flags ACK,FIN FIN -j DROP
-iptables -A INPUT -p tcp --tcp-flags ACK,PSH PSH -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL FIN,PSH,URG -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL SYN,FIN,PSH,URG -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
-# spoofed packages
-iptables -A INPUT -s 224.0.0.0/3 -j DROP
-iptables -A INPUT -s 169.254.0.0/16 -j DROP
-#iptables -A INPUT -s 172.16.0.0/12 -j DROP
-iptables -A INPUT -s 192.0.2.0/24 -j DROP
-#iptables -A INPUT -s 192.168.0.0/16 -j DROP
-#iptables -A INPUT -s 10.0.0.0/8 -j DROP
-iptables -A INPUT -s 0.0.0.0/8 -j DROP
-iptables -A INPUT -s 240.0.0.0/5 -j DROP
-#iptables -A INPUT -s 127.0.0.0/8 ! -i lo -j DROP
-# fragments
-iptables -A INPUT -f -j DROP
-# broadcast
+#### broadcast
 iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 # muticast
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
-# limit connections per source ip
+
+#### limit connections per source ip
 iptables -A INPUT -p tcp -m connlimit --connlimit-above 20 -j DROP
 # limit connections overall
 iptables -A INPUT -p tcp -m connlimit --connlimit-above 200 --connlimit-mask 0 -j DROP
