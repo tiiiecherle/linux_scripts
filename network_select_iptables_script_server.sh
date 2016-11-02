@@ -62,7 +62,7 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #       DNS hostname            		TCP             53
 #       samba                   		TCP             139 445
 #       samba                   		UDP             137 138
-#       ftps                     		TCP             21 60000:60100
+#       ftp                     		TCP             21 50000-51000
 #       http / https            		TCP             80 443
 #       openvpn                			UDP             1194 1195 1196 1197
 #       vnc                     		TCP             5900
@@ -76,13 +76,14 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #       unified remote          		UDP             9511 9512
 # forwarding for openvpn connections
 #       http / https            		TCP             80 443
-#       remote desktop          		TCP             3389
-#       lexmark printer         		TCP             80 443 515 631 9100
-#       printer, bonjour, mdns			UDP				5353
+#       remote desktop          		TCP             3389, 49000:50000
+#       lexmark printer         		TCP             80 443 515 631 9100 50000:60000
+#       printer, bonjour, mdns, avahi	UDP				5353
 														# only working with tap, tun cannot multicast / bonjour
 														# printer has to be connected via ip for tun connections
 #       qnap-ts412 admin        		TCP             8085
-#		cups							TCP				631 5353
+#		cups							TCP				631 
+#		cups							UDP				5353
 # 		git								TCP				9418
 
 
@@ -551,6 +552,7 @@ then
 	    do
 	       	# for tcp connections allow specified port
 	       	iptables -A output_services_internal_rescue -p tcp -s $RESCUE_SUBNET --dport $port -j ACCEPT
+	        iptables -A output_services_internal_rescue -p tcp -s $RESCUE_SUBNET --sport $port -j ACCEPT
 	    done
 	else
 	     :
@@ -561,6 +563,7 @@ then
 	    do
 	       	# for udp connections allow specified port
 	       	iptables -A output_services_internal_rescue -p udp -s $RESCUE_SUBNET --dport $port -j ACCEPT
+	        iptables -A output_services_internal_rescue -p udp -s $RESCUE_SUBNET --sport $port -j ACCEPT
 	    done
     else
 		:
@@ -665,6 +668,16 @@ iptables -t mangle -A PREROUTING -s 240.0.0.0/5 -j DROP
 # fragments
 iptables -t mangle -A PREROUTING -f -j DROP
 
+# ftp
+# enable this if you want to use passive ftp without opening further ports than 21
+# be sure that kernel module nf_conntrack_ftp is loadad additionally
+# lsmod | grep nf_conntrack
+# modprobe nf_conntrack
+# modprobe nf_conntrack_ftp
+# echo nf_conntrack_ftp > /etc/modules-load.d/nf_conntrack_ftp.conf
+# unfortunately a range of ports has to be opened if ftps is used because nf_conntrack_ftp cannot handle opening ports on encrypted connections
+#iptables -A PREROUTING -t raw -p tcp --dport 21 -j CT --helper ftp
+
 
 ###
 ### loopback and ping
@@ -746,7 +759,6 @@ iptables -A INPUT -p udp -j synflood_udp
 iptables -A INPUT -p tcp -j ssh_limits
 iptables -A INPUT -p tcp -j http_limits
 iptables -A INPUT -p tcp -j https_limits
-iptables -A PREROUTING -t raw -p tcp --dport 21 -j CT --helper ftp
 iptables -A INPUT -p ALL -j input_services_all
 iptables -A INPUT -p ALL -j input_services_internal
 if [ "$RESCUE_SUBNET" != "" ]
