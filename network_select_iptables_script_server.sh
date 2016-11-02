@@ -680,18 +680,40 @@ iptables -A OUTPUT -o lo -j ACCEPT
 
 
 ### icpm
-# allowing ping
-# input
-#iptables -A INPUT -p icmp -j ACCEPT
-iptables -A INPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8 -m limit --limit 1/s -j ACCEPT
+# allowing internal ping
+if [ "$IPTABLES_SUBNETS" != "" ]
+then
+    for i in $IPTABLES_SUBNETS;
+    do
+        if [ "$i" != "" ]
+        then
+			# input
+			#iptables -A INPUT -p icmp -j ACCEPT
+			iptables -A INPUT -s $i -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8 -m limit --limit 1/s -j ACCEPT
+			iptables -A OUTPUT -s $i -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
+			# ping flood
+			iptables -A INPUT -s $i -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+			iptables -A INPUT -s $i -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
+			#iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+			# output
+			iptables -A OUTPUT -s $i -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
+			iptables -A INPUT -s $i -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
+		else
+            echo 'no entry for $i, skipping allowing internal ping...'
+            :
+		fi
+	done
+else
+	:
+fi
+# rest of input pings
+# does not have an effect for ping on ip or dns if the server is not the gateway and is behind a router
+# in this case the router has to be configured to (not) answer the ping
+iptables -A INPUT -p icmp --icmp-type 8 -j DROP
+iptables -A INPUT -p icmp --icmp-type 0 -j DROP
+# rest of output pings
 iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
-# ping flood
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
-iptables -A INPUT -p icmp --icmp-type echo-reply -m limit --limit 1/s -j ACCEPT
-#iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
-# output
 iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
-iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
 
 
 ###
