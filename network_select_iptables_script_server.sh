@@ -37,11 +37,11 @@ INPUT_SERVICES_TCP_INTERNAL="22 139 445 889 4430 5900"
 # output udp all dport
 OUTPUT_SERVICES_UDP_ALL_DPORT="53 123 137 138 1194 1196 1197 5353"
 # output tcp all dport
-OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 # output udp all sport
 OUTPUT_SERVICES_UDP_ALL_SPORT="53 123 137 138 1194 1196 1197 5353"
 # output tcp all sport
-OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 # output udp internal
 OUTPUT_SERVICES_UDP_INTERNAL=""
 # output tcp internal
@@ -85,6 +85,8 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #		cups							TCP				631 
 #		cups							UDP				5353
 # 		git								TCP				9418
+#		gpg								TCP				11371
+
 
 
 ###
@@ -719,14 +721,15 @@ then
 else
 	:
 fi
+# rest of output pings
+iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
+iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
+iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
 # rest of input pings
 # does not have an effect for ping on ip or dns if the server is not the gateway and is behind a router
 # in this case the router has to be configured to (not) answer the ping
 iptables -A INPUT -p icmp --icmp-type 8 -j DROP
 iptables -A INPUT -p icmp --icmp-type 0 -j DROP
-# rest of output pings
-iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
-iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
 
 
 ###
