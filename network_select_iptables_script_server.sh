@@ -303,16 +303,18 @@ iptables -A synflood_udp -p udp -j DROP
 # 10/s	100
 # 25/m	100
 iptables -N http_limits
-iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set
-iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
+# do not enable hitcount 60 / 10 can cause timeout problems
+#iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set
+#iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 10 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 100 --connlimit-mask 0 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m limit --limit 10/second --limit-burst 100 -j RETURN
 iptables -A http_limits -p tcp --dport 80 -j DROP
 # https limits
 iptables -N https_limits
-iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
-iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
+# do not enable hitcount 60 / 10 can cause timeout problems
+#iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
+#iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
 iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 -j DROP
 iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 100 --connlimit-mask 0 -j DROP
 iptables -A https_limits -p tcp --dport 443 -m limit --limit 10/second --limit-burst 100 -j RETURN
