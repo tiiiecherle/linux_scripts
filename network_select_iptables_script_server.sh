@@ -27,7 +27,7 @@ else
 # services_internal opens the port for the specified subnet, the tun and tap devices
 
 # input udp all
-INPUT_SERVICES_UDP_ALL="123 1194 1196 1197"
+INPUT_SERVICES_UDP_ALL="1194 1196 1197"
 # input tcp all
 INPUT_SERVICES_TCP_ALL="21 80 443 60000:60100"
 # input udp internal
@@ -35,13 +35,15 @@ INPUT_SERVICES_UDP_INTERNAL="53 137 138"
 # input tcp internal
 INPUT_SERVICES_TCP_INTERNAL="22 139 445 889 4430 5900"
 # output udp all dport
-OUTPUT_SERVICES_UDP_ALL_DPORT="53 123 137 138 1194 1196 1197 5353"
+OUTPUT_SERVICES_UDP_ALL_DPORT="53 137 138 1194 1196 1197 5353"
 # output tcp all dport
-OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 # output udp all sport
 OUTPUT_SERVICES_UDP_ALL_SPORT="53 123 137 138 1194 1196 1197 5353"
 # output tcp all sport
 OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_SPORT_FTP="1024:"
 # output udp internal
 OUTPUT_SERVICES_UDP_INTERNAL=""
 # output tcp internal
@@ -68,7 +70,7 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #       vnc                     		TCP             5900
 #       3dm2 raid               		TCP             889
 #       cubesql                 		TCP             4430
-#       ntp                     		UDP             123
+#       ntp                     		UDPs             123
 #       mailserver              		TCP             25 993 995
 #       plex                    		TCP             3005 8324 32400 32469
 #       plex                    		UDP             1900 5353 32410 32412 32413 32414
@@ -86,6 +88,9 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #		cups							UDP				5353
 # 		git								TCP				9418
 #		gpg								TCP				11371
+#		smtp (msmtp)					TCPd			587
+#		whois							TCPd			43
+#		ftp passive (aur updates)		TCPd			1024: (means all unprivileged ports 1024:32535)
 
 
 
@@ -494,6 +499,7 @@ then
 else
 	:
 fi
+iptables -A output_services_all -p tcp --sport $OUTPUT_SERVICES_TCP_ALL_SPORT_FTP --dport $OUTPUT_SERVICES_TCP_ALL_DPORT_FTP -j ACCEPT
 # leaving table "output_services_all"
 iptables -A output_services_all -p ALL -j RETURN 
 
