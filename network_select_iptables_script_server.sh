@@ -35,12 +35,12 @@ else
 	# input tcp internal
 	INPUT_SERVICES_TCP_INTERNAL="22 139 445 889 4430 5900"
 	# output udp all dport
-	OUTPUT_SERVICES_UDP_ALL_DPORT="53 67 137 138 1194 1196 1197 5353"
+	OUTPUT_SERVICES_UDP_ALL_DPORT="53 67 123 137 138 443 1194 1196 1197 5353"
 	# output tcp all dport
 	OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 	OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 	# output udp all sport
-	OUTPUT_SERVICES_UDP_ALL_SPORT="53 67 123 137 138 1194 1196 1197 5353"
+	OUTPUT_SERVICES_UDP_ALL_SPORT="53 67 123 137 138 443 1194 1196 1197 5353"
 	# output tcp all sport
 	OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 	OUTPUT_SERVICES_TCP_ALL_SPORT_FTP="1024:"
@@ -70,7 +70,7 @@ else
 	#       vnc                     		TCP             5900
 	#       3dm2 raid               		TCP             889
 	#       cubesql                 		TCP             4430
-	#       ntp                     		UDPs             123
+	#       ntp / systemd-timesyncd         UDPs, UDPd      123
 	#       mailserver              		TCP             25 993 995
 	#       plex                    		TCP             3005 8324 32400 32469
 	#       plex                    		UDP             1900 5353 32410 32412 32413 32414
@@ -106,7 +106,7 @@ else
 		if [[ $NETWORKINTERFACE == "" ]]
 		then
 		    export PS3="no default network interface present, please select it: "
-		    select NETWORKINTERFACE in ""$(ls /sys/class/net/)""
+		    select NETWORKINTERFACE in ""$(ls /sys/class/net/ | sort --version-sort -f)""
 	    	do
 	        	echo you selected default network interface "$NETWORKINTERFACE".
 	        	echo ""
@@ -905,14 +905,47 @@ else
 	systemctl enable iptables
 	systemctl stop iptables
 	systemctl start iptables
+	#
+	systemctl restart smbd.service nmbd.service
+	systemctl restart x11vnc_start.service
+	if [[ $(pacman -Qs fail2ban) != "" ]]
+	then
+		# installed
+		#echo ''
+		systemctl restart fail2ban.service
+	else
+		# not installed
+		:
+	fi
 	if [[ -e /usr/lib/systemd/system/arpon.service ]]
 	then
-		sed -i "s|^ExecStart=/usr/bin/arpon.*|ExecStart=/usr/bin/arpon --interface $NETWORKINTERFACE --harpi|" /usr/lib/systemd/system/arpon.service
+		#sed -i "s|^ExecStart=/usr/bin/arpon.*|ExecStart=/usr/bin/arpon --interface $NETWORKINTERFACE --harpi|" /usr/lib/systemd/system/arpon.service
+		echo ARPON_OPTS="--interface $NETWORKINTERFACE --harpi" > /etc/conf.d/arpon
 		systemctl daemon-reload
 		systemctl restart arpon.service	
 	else
 		:
 	fi
-
+	if [[ $(pacman -Qs dnscrypt-proxy) != "" ]]
+	then
+		# installed
+		#echo ''
+		echo "nameserver 127.0.0.1" > /etc/resolv.conf
+		systemctl restart dnscrypt-proxy.service
+	else
+		# not installed
+		:
+	fi
+	if [[ $(pacman -Qs ipset) != "" ]] && [[ $(pacman -Qs pg2ipset) != "" ]]
+	then
+		# installed
+		echo ''
+		echo updating ipset... 
+		/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
+		systemctl restart ipset.service
+	else
+		# not installed
+		:
+	fi
 fi
 #
