@@ -932,6 +932,14 @@ else
 		#echo ''
 		echo "nameserver 127.0.0.1" > /etc/resolv.conf
 		systemctl restart dnscrypt-proxy.service
+		sleep 2
+		timeout 60 bash -c 'while [[ $(eval ''timeout 4 dig +short google.com 80 | grep -Eo "[0-9\.]{7,15}" | head -1 2>&1'') == "" ]]
+		do
+			echo "no connection on dnscrypt-proxy, restarting dnscrypt-proxy.service..."
+			systemctl restart dnscrypt-proxy.service
+			sleep 3
+		done'
+		echo "connection on dnscrypt-proxy successful..."
 	else
 		# not installed
 		:
@@ -941,7 +949,7 @@ else
 		# installed
 		echo ''
 		echo updating ipset... 
-		/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
+		#/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
 		systemctl restart ipset.service
 	else
 		# not installed
