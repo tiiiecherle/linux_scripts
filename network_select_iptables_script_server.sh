@@ -906,9 +906,26 @@ else
 	systemctl stop iptables
 	systemctl start iptables
 	#
-	systemctl restart smbd.service nmbd.service
-	systemctl restart x11vnc_start.service
-	if [[ $(pacman -Qs fail2ban) != "" ]]
+	if [[ $(pacman -Qs "^samba$") != "" ]]
+	then
+		# installed
+		#echo ''
+		systemctl restart smb.service 
+		#systemctl restart nmb.service
+	else
+		# not installed
+		:
+	fi
+	if [[ $(pacman -Qs "^x11vnc$") != "" ]]
+	then
+		# installed
+		#echo ''
+		systemctl restart x11vnc_start.service
+	else
+		# not installed
+		:
+	fi
+	if [[ $(pacman -Qs "^fail2ban$") != "" ]]
 	then
 		# installed
 		#echo ''
@@ -926,7 +943,7 @@ else
 	else
 		:
 	fi
-	if [[ $(pacman -Qs dnscrypt-proxy) != "" ]]
+	if [[ $(pacman -Qs "^dnscrypt-proxy$") != "" ]]
 	then
 		# installed
 		#echo ''
@@ -944,13 +961,13 @@ else
 		# not installed
 		:
 	fi
-	if [[ $(pacman -Qs ipset) != "" ]] && [[ $(pacman -Qs pg2ipset) != "" ]]
+	if [[ $(pacman -Qs "^ipset$") != "" ]] && [[ $(pacman -Qs "^pg2ipset$") != "" ]]
 	then
 		# installed
 		echo ''
-		echo updating ipset... 
+		#echo updating ipset... 
 		#/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
-		systemctl restart ipset.service
+		#systemctl restart ipset.service
 	else
 		# not installed
 		:
