@@ -905,7 +905,13 @@ else
 	systemctl enable iptables
 	systemctl stop iptables
 	systemctl start iptables
-	#
+	
+	###
+	### (re)starting services
+	###
+	
+	if [[ -e "$TMPFOLDER"/services_stopped.txt ]]; then rm -f "$TMPFOLDER"/services_stopped.txt; else :; fi;
+	
 	if [[ $(pacman -Qs "^samba$") != "" ]]
 	then
 		# installed
@@ -919,8 +925,10 @@ else
 	if [[ $(pacman -Qs "^x11vnc$") != "" ]]
 	then
 		# installed
-		#echo ''
-		systemctl restart x11vnc_start.service
+		# waiting for x11vnc to get ready on a restart - would produce error or hang if not waiting
+		# after fixing x11vnc.service no longer necessary
+		#(sleep 15 && systemctl restart x11vnc.service) &
+		systemctl restart x11vnc.service
 	else
 		# not installed
 		:
@@ -937,9 +945,10 @@ else
 	if [[ -e /usr/lib/systemd/system/arpon.service ]]
 	then
 		#sed -i "s|^ExecStart=/usr/bin/arpon.*|ExecStart=/usr/bin/arpon --interface $NETWORKINTERFACE --harpi|" /usr/lib/systemd/system/arpon.service
-		echo ARPON_OPTS="--interface $NETWORKINTERFACE --harpi" > /etc/conf.d/arpon
-		systemctl daemon-reload
-		systemctl restart arpon.service	
+		#echo ARPON_OPTS="--interface $NETWORKINTERFACE --harpi" > /etc/conf.d/arpon
+		#systemctl daemon-reload
+		#systemctl restart arpon.service
+		:
 	else
 		:
 	fi
@@ -965,9 +974,9 @@ else
 	then
 		# installed
 		echo ''
-		#echo updating ipset... 
-		#/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
-		#systemctl restart ipset.service
+		echo updating ipset... 
+		/data/scripts/ipset-update.sh 2>&1 | grep -v 'by that'
+		systemctl restart ipset.service
 	else
 		# not installed
 		:
