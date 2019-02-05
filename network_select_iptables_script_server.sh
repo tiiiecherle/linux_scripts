@@ -42,7 +42,7 @@ OUTPUT_SERVICES_UDP_ALL_DPORT="53 67 123 137 138 443 1196 1197 5353"
 OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 # output udp all sport
-OUTPUT_SERVICES_UDP_ALL_SPORT="53 67 123 137 138 443 1196 1197 5353"
+OUTPUT_SERVICES_UDP_ALL_SPORT="53 67 123 137 138 443 1196 1197"
 # output tcp all sport
 OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_SPORT_FTP="1024:"
@@ -740,7 +740,22 @@ iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 #### broadcast
 iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
-# muticast
+# multicast
+if [ "$IPTABLES_SUBNETS" != "" ]
+then
+    for i in $IPTABLES_SUBNETS;
+    do
+        if [ "$i" != "" ]
+        then
+			iptables -A INPUT -s "$i" -m pkttype --pkt-type multicast -j ACCEPT
+		else
+            echo 'no entry for $i, skipping allowing multicast locally...'
+            :
+		fi
+	done
+else
+	:
+fi
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 
