@@ -1,7 +1,7 @@
 # !/bin/bash
 
 # checking if script is run as root
-if [ $(id -u) -ne 0 ]
+if [[ $(id -u) -ne 0 ]]
 then 
     echo script is not run as root, exiting...
     exit
@@ -29,7 +29,7 @@ fi
 # services_internal opens the port for the specified subnet, the tun and tap devices
 
 # input udp all
-INPUT_SERVICES_UDP_ALL="1196 1197"
+INPUT_SERVICES_UDP_ALL="1196 1197 51820"
 # input tcp all
 INPUT_SERVICES_TCP_ALL="80 443"
 # input udp internal
@@ -90,11 +90,14 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #		cups							UDP				5353
 # 		git								TCP				9418
 #		gpg								TCP				11371
+#		openzone wifi network			TCP				8443
 #		smtp (msmtp)					TCPd			587
 #		whois							TCPd			43
 #		ftp passive (aur updates)		TCPd			1024: (means all unprivileged ports 1024:32535)
 #		dhclient						UDP				67
-
+#		dnscrypt						UDP				53 443
+#		vpnc							UDPs out		500, 4500
+#		wireguard						UDP in all		51820
 
 
 ###
@@ -193,13 +196,47 @@ else
 	:
 fi
 
+if [[ $WG_SUBNET0 == "" ]]
+then
+	WG0=wg0
+	if [[ $(ls -1 /sys/class/net/ | grep "$WG0") == "" ]]
+	then
+		:
+	else
+		IP_WG0=$(ip -o -4 addr list $WG0 | awk '{print $4}' | cut -d/ -f1)
+		#echo IP_WG0 is $IP_WG0
+		WG_SUBNET0=$(echo $(echo $IP_WG0 | cut -d"." -f1-3).0)
+		#echo WG_SUBNET0 is $WG_SUBNET0
+	fi
+else
+	:
+fi
+
+if [[ $WG_SUBNET1 == "" ]]
+then
+	WG1=wg1
+	if [[ $(ls -1 /sys/class/net/ | grep "$WG1") == "" ]]
+	then
+		:
+	else
+		IP_WG1=$(ip -o -4 addr list $WG1 | awk '{print $4}' | cut -d/ -f1)
+		#echo IP_WG1 is $IP_WG1
+		WG_SUBNET1=$(echo $(echo $IP_WG1 | cut -d"." -f1-3).0)
+		#echo WG_SUBNET1 is $WG_SUBNET1
+	fi
+else
+	:
+fi
 
 # variables
 CONNECTED_SUBNET="$SUBNET_ONLINE.0/24"
 if [[ $TUN_SUBNET0 != "" ]]; then CONNECTED_TUN_SUBNET0="$TUN_SUBNET0/24"; else CONNECTED_TUN_SUBNET0=""; fi
 if [[ $TUN_SUBNET1 != "" ]]; then CONNECTED_TUN_SUBNET1="$TUN_SUBNET1/24"; else CONNECTED_TUN_SUBNET1=""; fi
-IPTABLES_TUN_SUBNETS=$(echo "$CONNECTED_TUN_SUBNET0 $CONNECTED_TUN_SUBNET1" | tr ' ' '\n' | cat)
-IPTABLES_SUBNETS=$(echo "$CONNECTED_SUBNET $CONNECTED_TUN_SUBNET0 $CONNECTED_TUN_SUBNET1" | tr ' ' '\n' | cat)
+if [[ $WG_SUBNET0 != "" ]]; then CONNECTED_WG_SUBNET0="$WG_SUBNET0/24"; else CONNECTED_WG_SUBNET0=""; fi
+if [[ $WG_SUBNET1 != "" ]]; then CONNECTED_WG_SUBNET1="$WG_SUBNET1/24"; else CONNECTED_WG_SUBNET1=""; fi
+IPTABLES_VPN_SUBNETS=$(echo "$CONNECTED_TUN_SUBNET0 $CONNECTED_TUN_SUBNET1 $CONNECTED_WG_SUBNET0 $CONNECTED_WG_SUBNET1" | tr ' ' '\n' | cat)
+IPTABLES_SUBNETS=$(echo "$CONNECTED_SUBNET $IPTABLES_VPN_SUBNETS" | tr ' ' '\n' | cat)
+#IPTABLES_SUBNETS=$(echo "$CONNECTED_SUBNET $CONNECTED_TUN_SUBNET0 $CONNECTED_TUN_SUBNET1" | tr ' ' '\n' | cat)
 
 
 ###
@@ -296,7 +333,7 @@ iptables -A synflood_udp -p udp -j DROP
 # 10/s	100
 # 25/m	100
 iptables -N http_limits
-# do not enable hitcount 60 / 10 can cause timeout problems
+# do not enable hitcount 60 / 10 can cause timout problems
 #iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --set
 #iptables -A http_limits -p tcp --dport 80 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
 iptables -A http_limits -p tcp --dport 80 -m connlimit --connlimit-above 10 -j DROP
@@ -305,7 +342,7 @@ iptables -A http_limits -p tcp --dport 80 -m limit --limit 10/second --limit-bur
 iptables -A http_limits -p tcp --dport 80 -j DROP
 # https limits
 iptables -N https_limits
-# do not enable hitcount 60 / 10 can cause timeout problems
+# do not enable hitcount 60 / 10 can cause timout problems
 #iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --set
 #iptables -A https_limits -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 10 -j DROP
 iptables -A https_limits -p tcp --dport 443 -m connlimit --connlimit-above 10 -j DROP
@@ -328,14 +365,13 @@ iptables -N reject_limits
 iptables -A reject_limits -p ALL -m limit --limit 10/s -j input_log_reject
 iptables -A reject_limits -p ALL -j RETURN
 
-
 ### services input all
 # creating table "input_services_all"
 iptables -N input_services_all 
 # applying rules
 if [ "$INPUT_SERVICES_TCP_ALL" != "" ]
 then
-	echo "setting input all port openings"
+	echo "setting input all tcp port openings"
 	for port in $INPUT_SERVICES_TCP_ALL
 	do
 	       	# for tcp connections allow specified port
@@ -346,6 +382,7 @@ else
 fi
 if [ "$INPUT_SERVICES_UDP_ALL" != "" ]
 then
+	echo "setting input all udp port openings"
 	for port in $INPUT_SERVICES_UDP_ALL
 	do
 	       	# for udp connections allow specified port
@@ -371,7 +408,7 @@ then
             # variable not empty
 			if [ "$INPUT_SERVICES_TCP_INTERNAL" != "" ]
 			then
-	            echo "setting input internal port openings for $i"
+	            echo "setting input internal tcp port openings for $i"
 	            for port in $INPUT_SERVICES_TCP_INTERNAL
 	            do
 	               	# for tcp connections allow specified port
@@ -381,7 +418,8 @@ then
 	        	:
 	        fi
 	        if [ "$INPUT_SERVICES_UDP_INTERNAL" != "" ]
-				then
+			then
+				echo "setting input internal udp port openings for $i"
 	            for port in $INPUT_SERVICES_UDP_INTERNAL
 	            do
 	               	# for udp connections allow specified port
@@ -445,7 +483,7 @@ iptables -N output_services_all
 # applying rules
 if [ "$OUTPUT_SERVICES_TCP_ALL_DPORT" != "" ]
 then
-	echo "setting output all tcp dport openings for $i"
+	echo "setting output all tcp dport openings"
 	for port in $OUTPUT_SERVICES_TCP_ALL_DPORT
 	do
 	       	# for tcp connections allow specified port
@@ -456,7 +494,7 @@ else
 fi
 if [ "$OUTPUT_SERVICES_UDP_ALL_DPORT" != "" ]
 then
-	echo "setting output all udp dport openings for $i"
+	echo "setting output all udp dport openings"
 	for port in $OUTPUT_SERVICES_UDP_ALL_DPORT
 	do
 	       	# for udp connections allow specified port
@@ -467,7 +505,7 @@ else
 fi
 if [ "$OUTPUT_SERVICES_TCP_ALL_SPORT" != "" ]
 then
-	echo "setting output all tcp sport openings for $i"
+	echo "setting output all tcp sport openings"
 	for port in $OUTPUT_SERVICES_TCP_ALL_SPORT
 	do
 	       	# for tcp connections allow specified port
@@ -478,7 +516,7 @@ else
 fi
 if [ "$OUTPUT_SERVICES_UDP_ALL_SPORT" != "" ]
 then
-	echo "setting output all udp sport openings for $i"
+	echo "setting output all udp sport openings"
 	for port in $OUTPUT_SERVICES_UDP_ALL_SPORT
 	do
 	       	# for udp connections allow specified port
@@ -504,7 +542,7 @@ then
         then
 			if [ "$OUTPUT_SERVICES_TCP_INTERNAL" != "" ]
 			then
-	            echo "setting output internal port openings for $i"
+	            echo "setting output internal tcp port openings for $i"
 	            for port in $OUTPUT_SERVICES_TCP_INTERNAL
 	            do
 	               	# for tcp connections allow specified port
@@ -514,7 +552,8 @@ then
 	        	:
 	        fi
 	        if [ "$OUTPUT_SERVICES_UDP_INTERNAL" != "" ]
-				then
+			then
+	            echo "setting output internal udp port openings for $i"
 	            for port in $OUTPUT_SERVICES_UDP_INTERNAL
 	            do
 	               	# for udp connections allow specified port
@@ -584,7 +623,7 @@ then
         if [ "$i" != "" ]
         then
             # variable not empty
-            echo "setting internal port forwardings for $i"
+            echo "setting internal port tcp forwardings for $i"
             if [ "$FORWARD_SERVICES_TCP_INTERNAL" != "" ]
 			then
 	            for port in $FORWARD_SERVICES_TCP_INTERNAL
@@ -597,6 +636,7 @@ then
 			fi 
 			if [ "$FORWARD_SERVICES_UDP_INTERNAL" != "" ]
 			then   
+			    echo "setting internal port udp forwardings for $i"
             	for port in $FORWARD_SERVICES_UDP_INTERNAL
 	            do
 	               # for udp connections allow specified port
@@ -845,28 +885,39 @@ iptables -A FORWARD -p ALL -j forward_services_internal
 
 
 ### openvpn tap ping
-# allowing ping from and to tap interfaces
+# allowing ping from and to vpn interfaces
 iptables -A FORWARD -s $CONNECTED_SUBNET -p icmp -m conntrack --ctstate NEW --icmp-type 8 -j ACCEPT
 iptables -A FORWARD -s $CONNECTED_SUBNET -p icmp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 
-### openvpn tun routing
-if [ "$IPTABLES_TUN_SUBNETS" != "" ]
+### vpn routing
+if [ "$IPTABLES_VPN_SUBNETS" != "" ]
 then
-    for i in $IPTABLES_TUN_SUBNETS;
+    for i in $IPTABLES_VPN_SUBNETS;
     do
         if [ "$i" != "" ]
         then
             # variable not empty
-            if [ $i == "$CONNECTED_TUN_SUBNET0" ]; then TUNINTERFACE="$TUN0"; elif [ $i == "$CONNECTED_TUN_SUBNET1" ]; then TUNINTERFACE="$TUN1"; else :; fi
-            echo "configuring openvpn $TUNINTERFACE for $i"
-            iptables -I FORWARD -i $TUNINTERFACE -s $i -m conntrack --ctstate NEW -j ACCEPT
+            if [[ "$i" == "$CONNECTED_TUN_SUBNET0" ]] 
+            then 
+            	VPN_INTERFACE="$TUN0" 
+            elif [[ "$i" == "$CONNECTED_TUN_SUBNET1" ]]
+            then 
+            	VPN_INTERFACE="$TUN1"
+            elif [[ "$i" == "$CONNECTED_WG_SUBNET0" ]]
+            then 
+            	VPN_INTERFACE="$WG0"	
+           	else 
+           		:
+           	fi
+            echo "configuring vpn $VPN_INTERFACE for $i"
+            iptables -I FORWARD -i $VPN_INTERFACE -s $i -m conntrack --ctstate NEW -j ACCEPT
             iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-            iptables -I FORWARD -i $TUNINTERFACE -o $NETWORKINTERFACE -s $i -d $CONNECTED_SUBNET -m conntrack --ctstate NEW -j ACCEPT
+            iptables -I FORWARD -i $VPN_INTERFACE -o $NETWORKINTERFACE -s $i -d $CONNECTED_SUBNET -m conntrack --ctstate NEW -j ACCEPT
             iptables -t nat -A POSTROUTING -s $i -j MASQUERADE
         else
             # variable empty
-            echo 'no entry for $i, skipping openvpn tun configuration...'
+            echo 'no entry for $i, skipping vpn routing configuration...'
             :
         fi
     done
@@ -919,8 +970,8 @@ iptables -A OUTPUT -p ALL -j DROP
 iptables-save > /etc/iptables/iptables.rules
 #iptables-save > /etc/iptables/rules.v4
 #ip6tables-save > /etc/iptables/rules.v6
-systemctl enable iptables
-systemctl stop iptables
-systemctl start iptables
-
+systemctl enable iptables.service
+systemctl stop iptables.service
+systemctl start iptables.service
+	
 #
