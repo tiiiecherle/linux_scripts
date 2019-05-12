@@ -35,7 +35,7 @@ INPUT_SERVICES_TCP_ALL="80 443"
 # input udp internal
 INPUT_SERVICES_UDP_INTERNAL="53 137 138"
 # input tcp internal
-INPUT_SERVICES_TCP_INTERNAL="21 22 139 445 889 4430 5900 60000:60100"
+INPUT_SERVICES_TCP_INTERNAL="21 22 139 445 889 3306 4430 5900 60000:60100"
 # output udp all dport
 OUTPUT_SERVICES_UDP_ALL_DPORT="53 67 123 137 138 443 1196 1197 5353"
 # output tcp all dport
@@ -62,42 +62,44 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #OUTPUT_SERVICES_TCP_RESCUE_INTERNAL="22"
 
 # documentation implemented services
-#       ssh                     		TCP             22
-#       DNS hostname            		TCP             53
-#       samba                   		TCP             139 445
-#       samba                   		UDP             137 138
-#       ftp                     		TCP             21 60000:60100
-#       http / https            		TCP             80 443
-#       openvpn                			UDP             1194 1195 1196 1197
-#       vnc                     		TCP             5900
-#       3dm2 raid               		TCP             889
-#       cubesql                 		TCP             4430
-#       ntp / systemd-timesyncd         UDPs, UDPd      123
-#       mailserver              		TCP             25 993 995
-#       plex                    		TCP             3005 8324 32400 32469
-#       plex                    		UDP             1900 5353 32410 32412 32413 32414
-#       unified remote          		TCP             9510 9512
-#       unified remote          		UDP             9511 9512
+#       ssh                     		TCP             	22
+#       DNS hostname            		TCP             	53
+#       samba                   		TCP             	139 445
+#       samba                   		UDP             	137 138
+#       ftp                     		TCP             	21 60000:60100
+#       http / https            		TCP             	80 443
+#       openvpn                			UDP             	1194 1195 1196 1197
+#       vnc                     		TCP             	5900
+#       3dm2 raid               		TCP             	889
+#       cubesql                 		TCP             	4430
+#       ntp / systemd-timesyncd         UDPs, UDPd      	123
+#       mailserver              		TCP             	25 993 995
+#       plex                    		TCP             	3005 8324 32400 32469
+#       plex                    		UDP             	1900 5353 32410 32412 32413 32414
+#       unified remote          		TCP             	9510 9512
+#       unified remote          		UDP             	9511 9512
 # forwarding for openvpn connections
-#       http / https            		TCP             80 443
-#       remote desktop          		TCP             3389, 49000:50000
-#       lexmark printer         		TCP             80 443 515 631 9100 50000:60000
-#       printer, bonjour, mdns, avahi	UDP				5353
-														# only working with tap, tun cannot multicast / bonjour
-														# printer has to be connected via ip for tun connections
-#       qnap-ts412 admin        		TCP             8085
-#		cups							TCP				631 
-#		cups							UDP				5353
-# 		git								TCP				9418
-#		gpg								TCP				11371
-#		openzone wifi network			TCP				8443
-#		smtp (msmtp)					TCPd			587
-#		whois							TCPd			43
-#		ftp passive (aur updates)		TCPd			1024: (means all unprivileged ports 1024:32535)
-#		dhclient						UDP				67
-#		dnscrypt						UDP				53 443
-#		vpnc							UDPs out		500, 4500
-#		wireguard						UDP in all		51820
+#       http / https            		TCP             	80 443
+#       remote desktop          		TCP             	3389, 49000:50000
+#       lexmark printer         		TCP             	80 443 515 631 9100 50000:60000
+#       printer, bonjour, mdns, avahi	UDP					5353
+															# only working with tap, tun cannot multicast / bonjour
+															# printer has to be connected via ip for tun connections
+#       qnap-ts412 admin        		TCP            		8085
+#		cups							TCP					631 
+#		cups							UDP					5353
+# 		git								TCP					9418
+#		gpg								TCP					11371
+#		openzone wifi network			TCP					8443
+#		smtp (msmtp)					TCPd				587
+#		whois							TCPd				43
+#		ftp passive (aur updates)		TCPd				1024: (means all unprivileged ports 1024:32535)
+#		dhcp, dhclient					UDPd out all		67
+#		dnscrypt						UDP					53 443
+#		vpnc							UDPs out			500, 4500
+#		wireguard server				UDP in all			51820
+#		wireguard client				UDPd out all		51820
+#		mariadb							TCPd in internal	3306
 
 
 ###
@@ -135,7 +137,7 @@ if [[ $SUBNET_ONLINE == "" ]]
 then
 	DEFAULTNETWORKINTERFACE="$NETWORKINTERFACE"
 	#echo DEFAULTNETWORKINTERFACE is $DEFAULTNETWORKINTERFACE
-	INT_IP_ONLINE=$(ip -o -4 addr list $DEFAULTNETWORKINTERFACE | awk '{print $4}' | cut -d/ -f1)
+	INT_IP_ONLINE=$(ip -o -4 addr list dev $DEFAULTNETWORKINTERFACE | awk '{print $4}' | cut -d/ -f1)
 	#echo INT_IP_ONLINE is $INT_IP_ONLINE
 	if [[ $INT_IP_ONLINE == "" ]]
 	then
@@ -171,7 +173,7 @@ then
 	then
 		:
 	else
-		IP_TUN0=$(ip -o -4 addr list $TUN0 | awk '{print $4}' | cut -d/ -f1)
+		IP_TUN0=$(ip -o -4 addr list dev $TUN0 | awk '{print $4}' | cut -d/ -f1)
 		#echo IP_TUN0 is $IP_TUN0
 		TUN_SUBNET0=$(echo $(echo $IP_TUN0 | cut -d"." -f1-3).0)
 		#echo TUN_SUBNET0 is $TUN_SUBNET0
@@ -187,7 +189,7 @@ then
 	then
 		:
 	else
-		IP_TUN1=$(ip -o -4 addr list $TUN1 | awk '{print $4}' | cut -d/ -f1)
+		IP_TUN1=$(ip -o -4 addr list dev $TUN1 | awk '{print $4}' | cut -d/ -f1)
 		#echo IP_TUN1 is $IP_TUN1
 		TUN_SUBNET1=$(echo $(echo $IP_TUN1 | cut -d"." -f1-3).0)
 		#echo TUN_SUBNET1 is $TUN_SUBNET1
@@ -203,7 +205,7 @@ then
 	then
 		:
 	else
-		IP_WG0=$(ip -o -4 addr list $WG0 | awk '{print $4}' | cut -d/ -f1)
+		IP_WG0=$(ip -o -4 addr list dev $WG0 | awk '{print $4}' | cut -d/ -f1)
 		#echo IP_WG0 is $IP_WG0
 		WG_SUBNET0=$(echo $(echo $IP_WG0 | cut -d"." -f1-3).0)
 		#echo WG_SUBNET0 is $WG_SUBNET0
@@ -219,7 +221,7 @@ then
 	then
 		:
 	else
-		IP_WG1=$(ip -o -4 addr list $WG1 | awk '{print $4}' | cut -d/ -f1)
+		IP_WG1=$(ip -o -4 addr list dev $WG1 | awk '{print $4}' | cut -d/ -f1)
 		#echo IP_WG1 is $IP_WG1
 		WG_SUBNET1=$(echo $(echo $IP_WG1 | cut -d"." -f1-3).0)
 		#echo WG_SUBNET1 is $WG_SUBNET1
