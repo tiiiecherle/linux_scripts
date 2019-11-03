@@ -33,16 +33,16 @@ INPUT_SERVICES_UDP_ALL="1196 1197 51820"
 # input tcp all
 INPUT_SERVICES_TCP_ALL="80 443"
 # input udp internal
-INPUT_SERVICES_UDP_INTERNAL="53 137 138"
+INPUT_SERVICES_UDP_INTERNAL="9 53 137 138"
 # input tcp internal
 INPUT_SERVICES_TCP_INTERNAL="21 22 139 445 889 3306 4430 5900 60000:60100"
 # output udp all dport
-OUTPUT_SERVICES_UDP_ALL_DPORT="53 67 123 137 138 443 1196 1197 5353"
+OUTPUT_SERVICES_UDP_ALL_DPORT="9 53 67 123 137 138 443 1196 1197 5353"
 # output tcp all dport
 OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 # output udp all sport
-OUTPUT_SERVICES_UDP_ALL_SPORT="53 67 123 137 138 443 1196 1197"
+OUTPUT_SERVICES_UDP_ALL_SPORT="9 53 67 123 137 138 443 1196 1197"
 # output tcp all sport
 OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_SPORT_FTP="1024:"
@@ -100,6 +100,8 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #		wireguard server				UDP in all			51820
 #		wireguard client				UDPd out all		51820
 #		mariadb							TCPd in internal	3306
+#		magic packet (wol)				UDPs				9 (internal in + outd + outs + socat)
+
 
 
 ###
@@ -780,15 +782,14 @@ iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 #iptables -A INPUT -p ALL -m conntrack --ctstate ESTABLISHED,RELATED -m limit --limit 50/s --limit-burst 50 -j ACCEPT
 
 
-#### broadcast
-iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
-# multicast
+#### broadcast & multicast
 if [ "$IPTABLES_SUBNETS" != "" ]
 then
     for i in $IPTABLES_SUBNETS;
     do
         if [ "$i" != "" ]
         then
+			#iptables -A INPUT -s "$i" -m pkttype --pkt-type broadcast -j ACCEPT
 			iptables -A INPUT -s "$i" -m pkttype --pkt-type multicast -j ACCEPT
 		else
             echo 'no entry for $i, skipping allowing multicast locally...'
@@ -798,6 +799,7 @@ then
 else
 	:
 fi
+iptables -A INPUT -m pkttype --pkt-type broadcast -j DROP
 iptables -A INPUT -m pkttype --pkt-type multicast -j DROP
 
 
