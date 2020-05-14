@@ -29,22 +29,22 @@ fi
 # services_internal opens the port for the specified subnet, the tun and tap devices
 
 # input udp all
-INPUT_SERVICES_UDP_ALL="1196 1197 51820"
+INPUT_SERVICES_UDP_ALL="1196 1197 5349 10000 51820"
 # input tcp all
-INPUT_SERVICES_TCP_ALL="80 443"
+INPUT_SERVICES_TCP_ALL="80 443 4443 5349"
 # input udp internal
 INPUT_SERVICES_UDP_INTERNAL="9 53 137 138"
 # input tcp internal
 INPUT_SERVICES_TCP_INTERNAL="21 22 139 445 889 3306 4430 5900 60000:60100"
 # output udp all dport
-OUTPUT_SERVICES_UDP_ALL_DPORT="9 53 67 123 137 138 443 1196 1197 5353"
+OUTPUT_SERVICES_UDP_ALL_DPORT="9 53 67 123 137 138 443 1196 1197 5353 5349 10000 49200:49300"
 # output tcp all dport
-OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 873 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 873 889 3389 4430 4443 5349 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 # output udp all sport
-OUTPUT_SERVICES_UDP_ALL_SPORT="9 53 67 123 137 138 443 1196 1197"
+OUTPUT_SERVICES_UDP_ALL_SPORT="9 53 67 123 137 138 443 1196 1197 5349 10000 49200:49300"
 # output tcp all sport
-OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_SPORT="21 22 53 80 139 443 445 515 631 889 3389 4430 4443 5349 5900 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_SPORT_FTP="1024:"
 # output udp internal
 OUTPUT_SERVICES_UDP_INTERNAL=""
@@ -54,6 +54,14 @@ OUTPUT_SERVICES_TCP_INTERNAL=""
 FORWARD_SERVICES_UDP_INTERNAL="5353"
 # forward tcp internal
 FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
+# exclude from postrouting vpn udp
+EXCLUDE_POSTROUTING_UDP_DPORT="5349"
+# exclude from postrouting vpn tcp
+EXCLUDE_POSTROUTING_TCP_DPORT="5349"
+# postrouting vpn udp
+POSTROUTING_VPN_UDP=$(for ENTRY in "${OUTPUT_SERVICES_UDP_ALL_DPORT[@]}" "${FORWARD_SERVICES_UDP_INTERNAL[@]}"; do echo "$ENTRY"; done | sort -nu)
+# postrouting vpn tcp
+POSTROUTING_VPN_TCP=$(for ENTRY in "${OUTPUT_SERVICES_TCP_ALL_DPORT[@]}" "${FORWARD_SERVICES_TCP_INTERNAL[@]}"; do echo "$ENTRY"; done | sort -nu)
 # service subnet
 #RESCUE_SUBNET="172.25.143.0/24"
 #INPUT_SERVICES_UDP_RESCUE_INTERNAL=""
@@ -62,47 +70,53 @@ FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
 #OUTPUT_SERVICES_TCP_RESCUE_INTERNAL="22"
 
 # documentation implemented services
-#       ssh                     		TCP             	22
-#       DNS hostname            		TCP             	53
-#       samba                   		TCP             	139 445
-#       samba                   		UDP             	137 138
-#       ftp                     		TCP             	21 60000:60100
-#       http / https            		TCP             	80 443
-#       openvpn                			UDP             	1194 1195 1196 1197
-#       vnc                     		TCP             	5900
-#       3dm2 raid               		TCP             	889
-#       cubesql                 		TCP             	4430
-#       ntp / systemd-timesyncd         UDPs, UDPd      	123
-#       mailserver              		TCP             	25 993 995
-#       plex                    		TCP             	3005 8324 32400 32469
-#       plex                    		UDP             	1900 5353 32410 32412 32413 32414
-#       unified remote          		TCP             	9510 9512
-#       unified remote          		UDP             	9511 9512
-# forwarding for openvpn connections
-#       http / https            		TCP             	80 443
-#       remote desktop          		TCP             	3389, 49000:50000
-#       lexmark printer         		TCP             	80 443 515 631 9100 50000:60000
-#       printer, bonjour, mdns, avahi	UDP					5353
-															# only working with tap, tun cannot multicast / bonjour
-															# printer has to be connected via ip for tun connections
-#       qnap-ts412 admin        		TCP            		8085
-#		cups							TCP					631 
-#		cups							UDP					5353
-# 		git								TCP					9418
-#		gpg								TCP					11371
-#		openzone wifi network			TCP					8443
-#		smtp (msmtp)					TCPd				587
-#		whois							TCPd				43
-#		ftp passive (aur updates)		TCPd				1024: (means all unprivileged ports 1024:32535)
-#		dhcp, dhclient					UDPd out all		67
-#		dnscrypt						UDP					53 443
-#		vpnc							UDPs out			500, 4500
-#		wireguard server				UDP in all			51820
-#		wireguard client				UDPd out all		51820
-#		mariadb							TCPd in internal	3306
-#		magic packet (wol)				UDPs				9 (internal in + outd + outs + socat)
-#		clamav signatures (rsync)		TCPd out			873 (rsync) 443 (curl & wget)
+#       ssh                     		TCP             			22
+#       DNS hostname            		TCP             			53
+#       samba                   		TCP             			139 445
+#       samba                   		UDP             			137 138
+#       ftp                     		TCP             			21 60000:60100
+#       http / https            		TCP             			80 443
+#       openvpn                			UDP             			1194 1195 1196 1197
+#       vnc                     		TCP             			5900
+#       3dm2 raid               		TCP             			889
+#       cubesql                 		TCP             			4430
+#       ntp / systemd-timesyncd         UDPs, UDPd      			123
+#       mailserver              		TCP             			25 993 995
+#       plex                    		TCP             			3005 8324 32400 32469
+#       plex                    		UDP             			1900 5353 32410 32412 32413 32414
+#       unified remote          		TCP             			9510 9512
+#       unified remote          		UDP             			9511 9512
+#       qnap-ts412 admin        		TCP            				8085
+#		cups							TCP							631 
+#		cups							UDP							5353
+# 		git								TCP							9418
+#		gpg								TCP							11371
+#		openzone wifi network			TCP							8443
+#		smtp (msmtp)					TCPd						587
+#		whois							TCPd						43
+#		ftp passive (aur updates)		TCPd						1024: (means all unprivileged ports 1024:32535)
+#		dhcp, dhclient					UDPd out all				67
+#		dnscrypt						UDP							53 443
+#		vpnc							UDPs out					500, 4500
+#		wireguard server				UDP in all					51820
+#		wireguard client				UDPd out all				51820
+#		mariadb							TCPd in internal			3306
+#		magic packet (wol)				UDPs						9 (internal in + outd + outs + socat)
+#		clamav signatures (rsync)		TCPd out					873 (rsync) 443 (curl & wget)
 
+# forwarding for vpn connections
+#       http / https            		TCP             			80 443
+#       remote desktop          		TCP             			3389, 49000:50000
+#       lexmark printer         		TCP             			80 443 515 631 9100 50000:60000
+#       printer, bonjour, mdns, avahi	UDP							5353
+																	# only working with tap, tun cannot multicast / bonjour
+																	# printer has to be connected via ip for tun connections
+#		coturn							UDP	in & out				tls 5349
+#										UDP	in & out				non-tls 3478
+#										UDPs out					49200:49300		# limited with --min-port/--max-port, default 49152:65535
+#										UDPd out					49200:49300		# limited with --min-port/--max-port, default 49152:65535
+#										exclude POSTROUTING UDP		3847 5349		# without this jitsi-videobrige does not work
+#										exclude POSTROUTING TCP		3847 5349		# without this jitsi-videobrige does not work
 
 
 ###
@@ -912,15 +926,73 @@ then
             	VPN_INTERFACE="$TUN1"
             elif [[ "$i" == "$CONNECTED_WG_SUBNET0" ]]
             then 
-            	VPN_INTERFACE="$WG0"	
+            	VPN_INTERFACE="$WG0"
            	else 
            		:
            	fi
+           	
             echo "configuring vpn $VPN_INTERFACE for $i"
-            iptables -I FORWARD -i $VPN_INTERFACE -s $i -m conntrack --ctstate NEW -j ACCEPT
+            # https://community.openvpn.net/openvpn/wiki/BridgingAndRouting
+            iptables -I FORWARD -i $VPN_INTERFACE -o $NETWORKINTERFACE -s $i -m conntrack --ctstate NEW -j ACCEPT
             iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-            iptables -I FORWARD -i $VPN_INTERFACE -o $NETWORKINTERFACE -s $i -d $CONNECTED_SUBNET -m conntrack --ctstate NEW -j ACCEPT
-            iptables -t nat -A POSTROUTING -s $i -j MASQUERADE
+            
+            # with MASQUERADE or SNAT enabled on all ports some apps may not work correctly (e.g. stun/turn server)
+            # therefore only MASQUERADE/SNAT the allowed forwarded and allowed outgoing dports and specifically exclude (by deleting the rule) specific ports (e.g. stun/turn server)
+     
+            #iptables -t nat -A POSTROUTING -s $i -o $NETWORKINTERFACE -j MASQUERADE
+            # or (even better with less overhead)
+            # https://terrywang.net/2016/02/02/new-iptables-gotchas.html
+            #iptables -t nat -A POSTROUTING -s "$i" -o $NETWORKINTERFACE -j SNAT --to-source $INT_IP_ONLINE
+            # equivalent
+          	#iptables -t nat -A POSTROUTING -s $i -o $NETWORKINTERFACE -p tcp --dport 1:65535 -j SNAT --to-source $INT_IP_ONLINE
+          	#iptables -t nat -A POSTROUTING -s $i -o $NETWORKINTERFACE -p udp --dport 1:65535 -j SNAT --to-source $INT_IP_ONLINE
+
+            echo "setting postrouting vpn snat tcp ports for $i"
+            if [ "$FORWARD_SERVICES_TCP_INTERNAL" != "" ]
+			then
+	            for port in $POSTROUTING_VPN_TCP
+	            do
+	            	# for tcp connections postroute/snat specified port
+	            	iptables -t nat -A POSTROUTING -s $i -o $NETWORKINTERFACE -p tcp --dport $port -j SNAT --to-source $INT_IP_ONLINE
+	            	:
+	            done
+	      	else
+				:
+			fi 
+			if [ "$FORWARD_SERVICES_UDP_INTERNAL" != "" ]
+			then   
+			    echo "setting postrouting vpn snat udp ports for $i"
+            	for port in $POSTROUTING_VPN_UDP
+	            do
+	               # for udp connections postroute/snat specified port
+	               iptables -t nat -A POSTROUTING -s $i -o $NETWORKINTERFACE -p udp --dport $port -j SNAT --to-source $INT_IP_ONLINE
+	               :
+	            done
+	      	else
+				:
+			fi
+			
+			# postrouting exclusions
+			if [ "$EXCLUDE_POSTROUTING_TCP_DPORT" != "" ]
+			then   
+			    echo "excluding postrouting vpn snat tcp ports for $i"
+            	for port in $EXCLUDE_POSTROUTING_TCP_DPORT
+	            do
+	               iptables -t nat -D POSTROUTING -s $i -o $NETWORKINTERFACE -p tcp --dport $port -j SNAT --to-source $INT_IP_ONLINE
+	            done
+	      	else
+				:
+			fi  
+			if [ "$EXCLUDE_POSTROUTING_UDP_DPORT" != "" ]
+			then   
+			    echo "excluding postrouting vpn snat udp ports for $i"
+            	for port in $EXCLUDE_POSTROUTING_UDP_DPORT
+	            do
+	               iptables -t nat -D POSTROUTING -s $i -o $NETWORKINTERFACE -p udp --dport $port -j SNAT --to-source $INT_IP_ONLINE
+	            done
+	      	else
+				:
+			fi
         else
             # variable empty
             echo 'no entry for $i, skipping vpn routing configuration...'
@@ -930,6 +1002,7 @@ then
 else
     :
 fi
+
 
 
 ###
