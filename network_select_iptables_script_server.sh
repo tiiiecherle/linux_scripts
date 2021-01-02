@@ -39,7 +39,7 @@ INPUT_SERVICES_TCP_INTERNAL="21 22 139 445 889 3306 4430 5900 60000:60100"
 # output udp all dport
 OUTPUT_SERVICES_UDP_ALL_DPORT="9 53 67 123 137 138 443 1196 1197 5353 5349 10000 49200:49300"
 # output tcp all dport
-OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 873 889 3389 4430 4443 5349 5900 8085 9100 9418 11371 60000:60100"
+OUTPUT_SERVICES_TCP_ALL_DPORT="21 22 43 53 80 139 443 445 515 587 631 873 889 3389 4430 4443 5349 5900 8000 8085 9100 9418 11371 60000:60100"
 OUTPUT_SERVICES_TCP_ALL_DPORT_FTP="1024:"
 # output udp all sport
 OUTPUT_SERVICES_UDP_ALL_SPORT="9 53 67 123 137 138 443 1196 1197 5349 10000 49200:49300"
@@ -53,7 +53,7 @@ OUTPUT_SERVICES_TCP_INTERNAL=""
 # forward udp internal
 FORWARD_SERVICES_UDP_INTERNAL="5353"
 # forward tcp internal
-FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 3389 5900 8085 9100"
+FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 993 995 3389 5051 5900 8000 9100"
 # exclude from postrouting vpn udp
 EXCLUDE_POSTROUTING_UDP_DPORT="5349"
 # exclude from postrouting vpn tcp
@@ -82,11 +82,13 @@ POSTROUTING_VPN_TCP=$(for ENTRY in "${OUTPUT_SERVICES_TCP_ALL_DPORT[@]}" "${FORW
 #       cubesql                 		TCP             			4430
 #       ntp / systemd-timesyncd         UDPs, UDPd      			123
 #       mailserver              		TCP             			25 993 995
+#       get and send mails via vpn      TCP             			587 993 995
 #       plex                    		TCP             			3005 8324 32400 32469
 #       plex                    		UDP             			1900 5353 32410 32412 32413 32414
 #       unified remote          		TCP             			9510 9512
 #       unified remote          		UDP             			9511 9512
-#       qnap-ts412 admin        		TCP            				8085
+#       qnap-ts412		        		TCP            				8085
+#		synology						TCP							5051
 #		cups							TCP							631 
 #		cups							UDP							5353
 # 		git								TCP							9418
@@ -108,6 +110,7 @@ POSTROUTING_VPN_TCP=$(for ENTRY in "${OUTPUT_SERVICES_TCP_ALL_DPORT[@]}" "${FORW
 #       http / https            		TCP             			80 443
 #       remote desktop          		TCP             			3389, 49000:50000
 #       lexmark printer         		TCP             			80 443 515 631 9100 50000:60000
+#		canon printer web interface		TCP							8000
 #       printer, bonjour, mdns, avahi	UDP							5353
 																	# only working with tap, tun cannot multicast / bonjour
 																	# printer has to be connected via ip for tun connections
@@ -777,7 +780,7 @@ then
 else
 	:
 fi
-# rest of output pings
+# rest for pings
 iptables -A INPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -m limit --limit 1/s -j ACCEPT
 iptables -A OUTPUT -p icmp -m conntrack --ctstate ESTABLISHED,RELATED --icmp-type 0 -j ACCEPT
 iptables -A OUTPUT -p icmp -m conntrack --ctstate NEW,ESTABLISHED,RELATED --icmp-type 8  -j ACCEPT
@@ -1051,6 +1054,8 @@ iptables-save > /etc/iptables/iptables.rules
 #ip6tables-save > /etc/iptables/rules.v6
 systemctl enable iptables.service
 systemctl stop iptables.service
+# delete ipsets
+#ipset destroy
 systemctl start iptables.service
 	
 #
