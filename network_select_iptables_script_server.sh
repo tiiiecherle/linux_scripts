@@ -51,9 +51,9 @@ OUTPUT_SERVICES_UDP_INTERNAL=""
 # output tcp internal
 OUTPUT_SERVICES_TCP_INTERNAL=""
 # forward udp internal
-FORWARD_SERVICES_UDP_INTERNAL="5353"
+FORWARD_SERVICES_UDP_INTERNAL="3478 5055:5059 5060 5353 16384:32767"
 # forward tcp internal
-FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 993 995 3389 5051 5900 8000 9100"
+FORWARD_SERVICES_TCP_INTERNAL="80 443 515 631 993 995 3000 3389 5051 5061 5222 5900 8000 8443 9100 24998"
 # exclude from postrouting vpn udp
 EXCLUDE_POSTROUTING_UDP_DPORT="5349"
 # exclude from postrouting vpn tcp
@@ -114,12 +114,24 @@ POSTROUTING_VPN_TCP=$(for ENTRY in "${OUTPUT_SERVICES_TCP_ALL_DPORT[@]}" "${FORW
 #       printer, bonjour, mdns, avahi	UDP							5353
 																	# only working with tap, tun cannot multicast / bonjour
 																	# printer has to be connected via ip for tun connections
-#		coturn							UDP	in & out				tls 5349
-#										UDP	in & out				non-tls 3478
+#       telephone macos					UDP							5060			
+#       softphone ios					TCP							5061
+#										TCP							24998
+#		rtp	voice						UDP							16384:32767
+#		ios apps						TCP 						3000 (dxb smart)
+#										UDP 						5055:5059 (yatzy)
+#										TCP							8443 (dkb)	
+#		whatsapp incl. voice calls		TCP							443 5222
+#										UDP							3478
+																	
+#		jitsi							UDP	in & out				10000			# media traffic
+#										TCP	in & out				80 443 4443
+#		coturn and jitsi				UDP	in & out				5349			# tls
 #										UDPs out					49200:49300		# limited with --min-port/--max-port, default 49152:65535
 #										UDPd out					49200:49300		# limited with --min-port/--max-port, default 49152:65535
 #										exclude POSTROUTING UDP		3847 5349		# without this jitsi-videobrige does not work
 #										exclude POSTROUTING TCP		3847 5349		# without this jitsi-videobrige does not work
+
 
 
 ###
@@ -163,7 +175,7 @@ then
 	then
 		read -r -p "no local network connection, please enter your subnet like this xxx.xxx.xxx.xxx, e.g. 192.168.1.0: " INT_IP_ONLINE
 		#echo INT_IP_ONLINE is $INT_IP_ONLINE
-		if echo "$INT_IP_ONLINE" | egrep -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' > /dev/null 2>&1
+		if echo "$INT_IP_ONLINE" | grep -Eo '(^| )(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])($|[[:space:]])' > /dev/null 2>&1
 		then
     		VALID_IP_ADDRESS="$(echo $INT_IP_ONLINE | awk -F'.' '$1 <=255 && $2 <= 255 && $3 <= 255 && $4 <= 255')"
     		if [ -z "$VALID_IP_ADDRESS" ]
@@ -346,11 +358,12 @@ iptables -A ddos -j DROP
 #	1/s		3
 # 	5/s		10
 iptables -N synflood_tcp
-iptables -A synflood_tcp -p tcp -m limit --limit 1/s --limit-burst 3 -j RETURN
+# smaller values led to issues, e.g. carddav syncing all contacts
+iptables -A synflood_tcp -p tcp -m limit --limit 10/s --limit-burst 4 -j RETURN
 iptables -A synflood_tcp -p tcp -j DROP
 # syn flood udp
 iptables -N synflood_udp
-iptables -A synflood_udp -p udp -m limit --limit 10/s --limit-burst 3 -j RETURN
+iptables -A synflood_udp -p udp -m limit --limit 10/s --limit-burst 4 -j RETURN
 iptables -A synflood_udp -p udp -j DROP
 # http limits
 # 10/s	100
@@ -885,6 +898,10 @@ fi
 ### forward
 ###
 
+### allowing only all ESTABLISHED AND RELATED existing connections, not NEW
+iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+
 ### dropping invalid packages
 iptables -A FORWARD -m conntrack --ctstate INVALID -j DROP
 
@@ -937,7 +954,8 @@ then
             echo "configuring vpn $VPN_INTERFACE for $i"
             # https://community.openvpn.net/openvpn/wiki/BridgingAndRouting
             iptables -I FORWARD -i $VPN_INTERFACE -o $NETWORKINTERFACE -s $i -m conntrack --ctstate NEW -j ACCEPT
-            iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+            # already done above
+            #iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
             
             # with MASQUERADE or SNAT enabled on all ports some apps may not work correctly (e.g. stun/turn server)
             # therefore only MASQUERADE/SNAT the allowed forwarded and allowed outgoing dports and specifically exclude (by deleting the rule) specific ports (e.g. stun/turn server)
